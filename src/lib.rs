@@ -1,24 +1,38 @@
-use tokio::{net::{TcpStream, TcpSocket}, io::{Interest, Ready}};
+use tokio::{net::{TcpStream, tcp::{OwnedReadHalf, OwnedWriteHalf}}, io::{Interest, Ready}};
 
 
 
-struct Topio<'a> {
-    pool: Connection<'a>
+struct Topio {
+    pool: dyn Connection
 }
 
-struct Connection<'a> {
+impl Topio {
+
+}
+
+#[async_trait::async_trait]
+trait Connection {
+    
+}
+
+struct AsyncConnection<'a> {
     target_addr: &'a str,
     tcp_ready: Ready,
-    tcp_stream: TcpStream
+    tcp_reader: OwnedReadHalf,
+    tcp_writer: OwnedWriteHalf
 }
 
-
-impl Topio<'_> {
+struct BlockingConnection {
 
 }
 
-async fn connect(target_addr: &str) -> Connection {
-    let tcp_stream: TcpStream = match TcpStream::connect(target_addr).await {
+fn blocking_connect() -> BlockingConnection {
+
+    BlockingConnection {  }
+}
+
+async fn connect(target_addr: &str) -> AsyncConnection {
+    let mut tcp_stream: TcpStream = match TcpStream::connect(target_addr).await {
         Ok(ok) => { ok },
         Err(_) => { panic!("connect fail") },
     };
@@ -26,10 +40,12 @@ async fn connect(target_addr: &str) -> Connection {
         Ok(ok) => { ok },
         Err(_) => { panic!("connection ready fail")},
     };
-    Connection {target_addr, tcp_ready, tcp_stream}
+    let (tcp_reader, tcp_writer) = tcp_stream.into_split();
+
+    AsyncConnection {target_addr, tcp_ready, tcp_reader, tcp_writer}
 }
 
-fn run_connection(connection: Connection) {
+fn run_connection(connection: AsyncConnection) {
 
 }
 
@@ -52,9 +68,10 @@ mod tests {
             tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
 
             let connection: Connection<'_> = connect(case.input_addr).await;
-            let result_addr: String = format!("{}", connection.tcp_stream.peer_addr().unwrap());
-            println!("{:?}", connection.tcp_ready);
-            assert_eq!(case.input_addr, result_addr);
+            let result_addr1: String = format!("{}", connection.tcp_reader.peer_addr().unwrap());
+            let result_addr2: String = format!("{}", connection.tcp_writer.peer_addr().unwrap());
+            assert_eq!(case.input_addr, result_addr1);
+            assert_eq!(case.input_addr, result_addr2);
             assert_eq!(false, connection.tcp_ready.is_read_closed());
             assert_eq!(false, connection.tcp_ready.is_error());
             assert_eq!(true, connection.tcp_ready.is_writable());
